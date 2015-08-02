@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 14
+VisualStudioVersion = 14.0.23107.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "phiori.dll", "phiori.dll.vcxproj", "{04CECCA1-D695-4B45-A164-DA5E6AFC30BF}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{C70B4A9E-5DD2-4739-97D4-4D789CA7ABD3}"
+	ProjectSection(SolutionItems) = preProject
+		COPYING.txt = COPYING.txt
+		LICENSE.txt = LICENSE.txt
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{04CECCA1-D695-4B45-A164-DA5E6AFC30BF}.Release|x86.ActiveCfg = Release|Win32
+		{04CECCA1-D695-4B45-A164-DA5E6AFC30BF}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
