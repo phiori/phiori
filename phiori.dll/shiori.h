@@ -1,9 +1,10 @@
 #ifndef SHIORI
 #define SHIORI ("phiori/1.10")
+#include "debug.h"
 
-int LOAD(void *h, long len);
-int UNLOAD(void);
-void *REQUEST(void *h, long *len);
+__declspec(dllexport) int __cdecl load(void *h, long len);
+__declspec(dllexport) int __cdecl unload(void);
+__declspec(dllexport) void *__cdecl request(void *h, long *len);
 
 int IS_LOADED;
 int IS_ERROR;

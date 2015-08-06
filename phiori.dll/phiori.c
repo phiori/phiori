@@ -1,17 +1,21 @@
-#include "shiori.h"
+#include "phiori.h"
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
 #include <Windows.h>
 #include <Python.h>
 
-char *ERROR_MESSAGE;
-char *ERROR_TRACEBACK;
+const wchar_t *PYTHON_DLL_NAME_W = L"python35.dll";
+const char *PYTHON_LIB_NAME = "python35.zip";
 
+BOOL checkPython();
 void getTraceback(void);
 PyObject *PyUnicode_ToSakuraScript(PyObject *value);
 
 char *phioriRoot;
+wchar_t *phioriRootW;
+wchar_t *phioriNameW;
+
 PyObject *globalModule;
 PyObject *phioriModule;
 PyObject *tracebackModule;
@@ -22,14 +26,25 @@ PyObject *errorTraceback;
 
 BOOL LOAD(HGLOBAL h, long len) {
     BOOL result = TRUE;
-    phioriRoot = malloc(len);
+    phioriRoot = (char *)calloc(len + 1, sizeof(char));
     memcpy(phioriRoot, (char *)h, len);
     size_t root_sz = MultiByteToWideChar(CP_UTF8, 0, phioriRoot, -1, NULL, 0);
-    wchar_t *root = (wchar_t *)malloc(root_sz);
-    MultiByteToWideChar(CP_UTF8, 0, phioriRoot, -1, root, root_sz);
-    Py_SetProgramName(root);
-    Py_SetPythonHome(root);
+    phioriRootW = (wchar_t *)calloc(root_sz, sizeof(wchar_t));
+    MultiByteToWideChar(CP_UTF8, 0, phioriRoot, -1, phioriRootW, root_sz);
+    _wsplitpath(phioriRootW, NULL, NULL, phioriNameW, NULL);
+    if (!checkPython()) {
+        IS_ERROR = TRUE;
+        ERROR_MESSAGE = "Unable to load python library.";
+        return FALSE;
+    }
+    Py_SetProgramName(phioriNameW);
+    Py_SetPythonHome(phioriRootW);
     Py_Initialize();
+    if (!Py_IsInitialized()) {
+        ERROR_MESSAGE = "Failed to initialise python.";
+        IS_ERROR = TRUE;
+        return FALSE;
+    }
     tracebackModule = PyImport_ImportModule("traceback");
     if (tracebackModule == NULL) {
         ERROR_MESSAGE = "Failed to initialise python.";
@@ -41,8 +56,8 @@ BOOL LOAD(HGLOBAL h, long len) {
         PyObject *err = PyErr_Occurred();
         if (err != NULL) {
             Py_XDECREF(err);
-            getTraceback();
             result = FALSE;
+            getTraceback();
         }
     }
     else {
@@ -62,15 +77,15 @@ BOOL LOAD(HGLOBAL h, long len) {
                 result = PyObject_IsTrue(callResult);
             Py_XDECREF(callResult);
             Py_XDECREF(arg0);
-            IS_LOADED = result;
         }
     }
+    IS_LOADED = result;
     return result;
 }
 
 BOOL UNLOAD(void) {
     BOOL result = TRUE;
-    if (!IS_LOADED) {
+    if (IS_LOADED) {
         PyObject *func = PyObject_GetAttrString(phioriModule, "unload");
         if (func && PyCallable_Check(func)) {
             PyObject *callResult = PyObject_CallFunctionObjArgs(func, NULL);
@@ -80,6 +95,7 @@ BOOL UNLOAD(void) {
         }
     }
     Py_Finalize();
+    free(phioriRootW);
     free(phioriRoot);
     return result;
 }
@@ -87,7 +103,6 @@ BOOL UNLOAD(void) {
 HGLOBAL REQUEST(HGLOBAL h, long *len) {
     char *result = NULL;
     if (!IS_LOADED) {
-        len = NULL;
         if (ERROR_MESSAGE == NULL)
             ERROR_MESSAGE = "Error has occurred while loading phiori core.";
         return NULL;
@@ -113,6 +128,26 @@ HGLOBAL REQUEST(HGLOBAL h, long *len) {
         Py_XDECREF(arg0);
     }
     return result;
+}
+
+BOOL checkPython() {
+    wchar_t *pathW = calloc(wcslen(phioriRootW) + wcslen(PYTHON_DLL_NAME_W), sizeof(wchar_t));
+    wcscpy(pathW, phioriRootW);
+    wcscat(pathW, PYTHON_DLL_NAME_W);
+    HMODULE dll = LoadLibrary(pathW);
+    free(pathW);
+    if (!dll)
+        return FALSE;
+    FreeLibrary(dll);
+    char *path = calloc(strlen(phioriRoot) + strlen(PYTHON_LIB_NAME), sizeof(char));
+    strcpy(path, phioriRoot);
+    strcat(path, PYTHON_LIB_NAME);
+    FILE *zip = fopen(path, "rb");
+    free(path);
+    if (!zip)
+        return FALSE;
+    fclose(zip);
+    return TRUE;
 }
 
 void getException(void) {

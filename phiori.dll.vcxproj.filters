@@ -28,5 +28,8 @@
     <ClInclude Include="phiori.dll\emergency.h">
       <Filter>헤더 파일</Filter>
     </ClInclude>
+    <ClInclude Include="phiori.dll\phiori.h">
+      <Filter>헤더 파일</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

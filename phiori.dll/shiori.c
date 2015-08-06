@@ -1,13 +1,10 @@
-#include "shiori.h"
 #include "emergency.h"
+#include "phiori.h"
+#include "shiori.h"
 #include <stdlib.h>
 #include <Windows.h>
 
-int IS_LOADED = 0;
-int IS_ERROR = 0;
-char *ERROR_MESSAGE = NULL;
-
-__declspec(dllexport) BOOL __cdecl load(HGLOBAL h, long len) {
+BOOL load(HGLOBAL h, long len) {
     int result = 0;
     result |= LOAD_Emergency(h, len);
     result |= LOAD(h, len);
@@ -15,7 +12,7 @@ __declspec(dllexport) BOOL __cdecl load(HGLOBAL h, long len) {
     return result;
 }
 
-__declspec(dllexport) BOOL __cdecl unload(void) {
+BOOL unload(void) {
     int result = 0;
     result |= UNLOAD_Emergency();
     if (!IS_ERROR)
@@ -23,7 +20,7 @@ __declspec(dllexport) BOOL __cdecl unload(void) {
     return result;
 }
 
-__declspec(dllexport) HGLOBAL __cdecl request(HGLOBAL h, long *len) {
+HGLOBAL request(HGLOBAL h, long *len) {
     void *result = NULL;
     HGLOBAL gResult = NULL;
     if (!IS_ERROR)
@@ -32,7 +29,8 @@ __declspec(dllexport) HGLOBAL __cdecl request(HGLOBAL h, long *len) {
         result = REQUEST_Emergency(h, len);
     GlobalFree(h);
     if (result) {
-        gResult = GlobalAlloc(GMEM_FIXED, *len);
+        gResult = GlobalAlloc(GMEM_FIXED, *len + 1);
+        strcpy(gResult, result);
         free(result);
     }
     return gResult;

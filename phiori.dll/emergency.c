@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <Windows.h>
+
 #define SHIORI25_VERSION_STRING ("SHIORI/2.5")
 #define SHIORI30_VERSION_STRING ("SHIORI/3.0")
 #define SHIORI_200 ("200 OK")
@@ -22,7 +24,6 @@
 
 #define PHIORI_FETUS_STRING ("phiori/fetus")
 #define US_ASCII_STRING ("US-ASCII")
-#define ANSI_STRING ("ANSI")
 
 #define KVARR_CAPACITY_STEP (4)
 
@@ -52,9 +53,9 @@ void shiori_kvarr_expand(SHIORI_KV **kvarr, size_t *kvarr_capacity, size_t kvarr
     if (kvarr_count >= *kvarr_capacity) {
         *kvarr_capacity += KVARR_CAPACITY_STEP;
         if (*kvarr_capacity == KVARR_CAPACITY_STEP)
-            *kvarr = (SHIORI_KV *)calloc(*kvarr_capacity, sizeof(SHIORI_KV *));
+            *kvarr = (SHIORI_KV *)calloc(*kvarr_capacity, sizeof(SHIORI_KV));
         else
-            *kvarr = (SHIORI_KV *)realloc(kvarr, *kvarr_capacity * sizeof(SHIORI_KV *));
+            *kvarr = (SHIORI_KV *)realloc(*kvarr, *kvarr_capacity * sizeof(SHIORI_KV));
     }
 }
 
@@ -83,25 +84,26 @@ void *REQUEST_Emergency(void *h, long *len) {
         Charset: Shift_JIS
     */
     char *raw;
-    raw = (char *)malloc(*len);
+    raw = (char *)calloc(*len + 1, sizeof(char));
     memcpy(raw, h, *len);
     int state = 0;
     size_t p = SIZE_MAX;
-    size_t l = SIZE_MAX;
+    size_t l = 0;
     size_t i;
     SHIORI_REQ req = {NULL, NULL, NULL, NULL, 0, 0};
     SHIORI_KV kv = {NULL, NULL};
-    for (i = 0; i < (size_t)len; i++) {
+    for (i = 0; i < (size_t)*len; i++) {
         // first line.
         if (state == 0) {
-            if (raw[i] != ' ' && p == SIZE_MAX)
+            if (raw[i] != ' ' && p == SIZE_MAX) {
                 p = i;
+                l = 0;
+            }
             else if (raw[i] == ' ') {
                 if (p == SIZE_MAX) {
                     state = -1;
                     break;
                 }
-                l = p - i;
                 if (req.req == NULL) {
                     req.req = (char *)calloc(l + 1, sizeof(char));
                     memcpy(req.req, raw + p, l);
@@ -110,41 +112,37 @@ void *REQUEST_Emergency(void *h, long *len) {
                 else if (req.name == NULL && req.ver == NULL) {
                     req.name = (char *)calloc(l + 1, sizeof(char));
                     memcpy(req.name, raw + p, l);
-                    if (strcmp(req.name, SHIORI30_VERSION_STRING) >= 0) {
+                    if (strcmp(req.name, SHIORI30_VERSION_STRING) == 0) {
                         req.ver = req.name;
                         req.name = NULL;
                     }
                     p = SIZE_MAX;
                 }
-                else if (req.ver == NULL) {
+            }
+            else if (raw[i - 1] == '\r' && raw[i] == '\n') {
+                l--;
+                if (req.ver == NULL) {
                     req.ver = (char *)calloc(l + 1, sizeof(char));
                     memcpy(req.ver, raw + p, l);
-                    p = SIZE_MAX;
                 }
+                p = SIZE_MAX;
+                state = 1;
             }
-            else if (raw[i - 1] == '\r' || raw[i] == '\n')
-                state++;
+            l++;
         }
         // headers.
         else if (state > 0) {
             if (p == SIZE_MAX) {
                 p = i;
                 l = 0;
-                if (kv.key != NULL) {
-                    free(kv.key);
-                    kv.key = NULL;
-                }
-                if (kv.value != NULL) {
-                    free(kv.value);
-                    kv.value = NULL;
-                }
             }
             switch (state) {
                 case 1: // "Key": Value\r\n
                     if (raw[i] != ':') {
-                        if (raw[i - 1] == '\r' || raw[i] == '\n') {
-                            if (l == 0)
+                        if (raw[i - 1] == '\r' && raw[i] == '\n') {
+                            if (l == 1) {
                                 i = *len;
+                            }
                             state = 5;
                         }
                         else
@@ -161,32 +159,47 @@ void *REQUEST_Emergency(void *h, long *len) {
                     if (raw[i] == ' ')
                         continue;
                     else {
-                        if (raw[i - 1] == '\r' || raw[i] == '\n')
+                        if (raw[i - 1] == '\r' && raw[i] == '\n')
                             state = 5;
                         else {
-                            p = i;
                             state = 3;
+                            p = SIZE_MAX;
+                            i--;
                         }
                     }
                     break;
                 case 3: // Key: "Value"\r\n
-                    if (raw[i - 1] == '\r' || raw[i] == '\n') {
+                    if (raw[i - 1] == '\r' && raw[i] == '\n') {
                         l--;
+                        kv.value = (char *)calloc(l + 1, sizeof(char));
+                        memcpy(kv.value, raw + p, l);
                         state = 4;
                     }
                     else
                         l++;
                     break;
                 case 4: // Key: Value"\r\n"
-                    kv.value = (char *)calloc(l + 1, sizeof(char));
-                    memcpy(kv.value, raw + p, l);
                     shiori_kvarr_expand(&req.kvarr, &req.kvarr_capacity, req.kvarr_count + 1);
-                    memcpy(req.kvarr + req.kvarr_count++, &kv, sizeof(SHIORI_KV));
-                    state = 1;
+                    int index = req.kvarr_count++;
+                    req.kvarr[index].key = calloc(strlen(kv.key) + 1, sizeof(char));
+                    req.kvarr[index].value = calloc(strlen(kv.value) + 1, sizeof(char));
+                    strcpy(req.kvarr[index].key, kv.key);
+                    strcpy(req.kvarr[index].value, kv.value);
+                    state = 5;
+                    i--;
                     break;
-                case 5: // error
+                case 5: // next
                     state = 1;
                     p = SIZE_MAX;
+                    if (kv.key != NULL) {
+                        free(kv.key);
+                        kv.key = NULL;
+                    }
+                    if (kv.value != NULL) {
+                        free(kv.value);
+                        kv.value = NULL;
+                    }
+                    i--;
             }
         }
     }
@@ -199,6 +212,8 @@ void *REQUEST_Emergency(void *h, long *len) {
         // "GET" or quit.
         if (strcmp(req.req, GET_STRING) == 0)
             GET(&req, &res);
+        else
+            res.stat = SHIORI_204;
     }
     // parsing failed.
     else {
@@ -216,13 +231,13 @@ void *REQUEST_Emergency(void *h, long *len) {
     // build SHIORI Response Message.
     char *resraw;
     char *resraw_p;
-    size_t resraw_len = strlen(res.stat) + strlen(res.ver) + 4;
+    size_t resraw_len = strlen(res.stat) + strlen(res.ver) + 6;
     for (i = 0; i < res.kvarr_count; i++)
-        resraw_len += strlen(res.kvarr[i].key) + strlen(res.kvarr[i].value) + 4;
+        resraw_len += strlen(res.kvarr[i].key) + strlen(res.kvarr[i].value) + 5;
     resraw = calloc(resraw_len, sizeof(char));
-    resraw_p = resraw + sprintf(resraw, "%s %s\r\n", res.stat, res.ver);
+    resraw_p = resraw + sprintf(resraw, "%s %s\r\n", res.ver, res.stat);
     for (i = 0; i < res.kvarr_count; i++)
-        resraw_p += sprintf(resraw, "%s: %s\r\n", res.kvarr[i].key, res.kvarr[i].value);
+        resraw_p += sprintf(resraw_p, "%s: %s\r\n", res.kvarr[i].key, res.kvarr[i].value);
     strcpy(resraw_p, "\r\n");
     // Free!
     for (i = 0; i < req.kvarr_count; i++) {
@@ -309,7 +324,8 @@ void GET_OnShellChanged(const SHIORI_REQ *req, SHIORI_RES *res) {
 void GET_OnMouseDoubleClick(const SHIORI_REQ *req, SHIORI_RES *res) {
     SHIORI_KV *kv = NULL;
     build_essential(res);
-    for (size_t i = 0; i < res->kvarr_count; i++) {
+    size_t i;
+    for (i = 0; i < res->kvarr_count; i++) {
         if (strcmp(res->ver, SHIORI25_VERSION_STRING) == 0) {
             if (strcmp(res->kvarr[i].key, SENTENCE_STRING) == 0)
                 kv = &res->kvarr[i];
@@ -318,30 +334,29 @@ void GET_OnMouseDoubleClick(const SHIORI_REQ *req, SHIORI_RES *res) {
             if (strcmp(res->kvarr[i].key, VALUE_STRING) == 0)
                 kv = &res->kvarr[i];
     }
-    const char *yqTmpl = "\\q[%s,%c]\\n";
-    const char *entry0 = "- Show Traceback";
-    const char *entry1 = "- Change Ghost";
-    const char *entry2 = "- Close";
-    const char *entry3 = "- Quit";
-    kv->value = realloc(kv->value, strlen(kv->value) + strlen(entry0) + strlen(entry1) + strlen(entry2) + strlen(entry3) + (strlen(yqTmpl) - 2) * 4 + 1);
+    const char *entry[] = {"Show Traceback", "Change Ghost", "Close", "Quit"};
+    size_t len = strlen(kv->value) + 9;
+    for (i = ERROR_TRACEBACK ? 0 : 1; i < sizeof(entry) / sizeof(char *); i++)
+        len += strlen(entry[i]) + 10 + (i / 10);
+    kv->value = realloc(kv->value, len);
     char *value_p = kv->value + strlen(kv->value);
-    sprintf(value_p, "\\_q%s\\n\\n%s%s%s\\e", ERROR_MESSAGE, yqTmpl, yqTmpl, yqTmpl);
-    char *menuTmpl = (char *)calloc(strlen(kv->value) + 1, sizeof(char));
-    strcpy(menuTmpl, kv->value);
-    sprintf(kv->value, menuTmpl, entry0, 0, entry1, 1, entry2, 2);
-    free(menuTmpl);
-    res->stat = SHIORI_500;
+    value_p += sprintf(value_p, "\\_q%s\\n\\n", ERROR_MESSAGE);
+    for (i = ERROR_TRACEBACK ? 0 : 1; i < sizeof(entry) / sizeof(char *); i++)
+        value_p += sprintf(value_p, "- \\q[%s,%d]\\n", entry[i], i);
+    sprintf(value_p, "\n");
 }
 
 void GET_OnChoiceSelect(const SHIORI_REQ *req, SHIORI_RES *res) {
     SHIORI_KV *kv = NULL;
-    for (size_t i = 0; i < res->kvarr_count; i++)
-        if (strcmp(res->kvarr[i].key, "Reference0") == 0)
-            kv = &res->kvarr[i];
+    for (size_t i = 0; i < req->kvarr_count; i++)
+        if (strcmp(req->kvarr[i].key, "Reference0") == 0)
+            kv = &req->kvarr[i];
+    if (!kv)
+        return;
     char *script = NULL;
     int isDynamic = 0;
     // show traceback
-    if (strcmp(kv->value, "0") == 0) {
+    if (strcmp(kv->value, "0") == 0 && ERROR_TRACEBACK) {
         isDynamic = 1;
         script = (char *)calloc(strlen(ERROR_MESSAGE) + strlen(ERROR_TRACEBACK) + 18, sizeof(char));
         sprintf(script, "\\_q%s\\n\\n%s\\x\\c\\e", ERROR_MESSAGE, ERROR_TRACEBACK);
@@ -383,6 +398,7 @@ void GET_String(const SHIORI_REQ *req, SHIORI_RES *res) {
 /* SHIORI/3.0 */
 
 void GET_version(const SHIORI_REQ *req, SHIORI_RES *res) {
+    build_essential(res);
     SHIORI_KV *kv = NULL;
     for (size_t i = 0; i < res->kvarr_count; i++)
         if (strcmp(res->kvarr[i].key, VALUE_STRING) == 0)
@@ -418,23 +434,31 @@ void GET(const SHIORI_REQ *req, SHIORI_RES *res) {
                     GET_OnChoiceSelect(req, res);
                 else if (strcmp(event, "OnShellChanged") == 0)
                     GET_OnShellChanged(req, res);
+                else
+                    res->stat = SHIORI_204;
             }
-            if (SHOW_ERROR)
+            else if (SHOW_ERROR)
                 if (*event == 'O' && event[1] == 'n') {
                     build_essential(res);
                     build_emergency_message(res);
                     SHOW_ERROR = 0;
                 }
         }
+        else if (strcmp(req->name, "String"))
+            res->stat = SHIORI_500;
     }
     // SHIORI3
     else {
         res->ver = SHIORI30_VERSION_STRING;
         char *id = NULL;
         size_t i;
-        for (i = 0; i < req->kvarr_count; i++)
+        for (i = 0; i < req->kvarr_count; i++) {
             if (strcmp(req->kvarr[i].key, ID_STRING) == 0)
                 id = req->kvarr[i].value;
+        }
+        if (id == NULL) {
+            return;
+        }
         if (strcmp(id, "version") == 0)
             GET_version(req, res);
         if (!IS_LOADED) {
@@ -454,13 +478,14 @@ void GET(const SHIORI_REQ *req, SHIORI_RES *res) {
                 GET_OnShellChanged(req, res);
             else if (*id >= 'a' && *id <= 'z')
                 GET_String(req, res);
+            else
+                res->stat = SHIORI_500;
         }
-        if (SHOW_ERROR)
+        else if (SHOW_ERROR)
             if (*id == 'O' && id[1] == 'n') {
                 build_essential(res);
                 build_emergency_message(res);
                 SHOW_ERROR = 0;
             }
-
     }
 }
