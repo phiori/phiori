@@ -4,8 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include <Windows.h>
-
 #define SHIORI25_VERSION_STRING ("SHIORI/2.5")
 #define SHIORI30_VERSION_STRING ("SHIORI/3.0")
 #define SHIORI_200 ("200 OK")

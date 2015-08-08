@@ -31,7 +31,8 @@ BOOL LOAD(HGLOBAL h, long len) {
     size_t root_sz = MultiByteToWideChar(CP_UTF8, 0, phioriRoot, -1, NULL, 0);
     phioriRootW = (wchar_t *)calloc(root_sz, sizeof(wchar_t));
     MultiByteToWideChar(CP_UTF8, 0, phioriRoot, -1, phioriRootW, root_sz);
-    _wsplitpath(phioriRootW, NULL, NULL, phioriNameW, NULL);
+    phioriNameW = (wchar_t *)calloc(root_sz, sizeof(wchar_t));
+    wcscpy(phioriNameW, phioriRootW);
     if (!checkPython()) {
         IS_ERROR = TRUE;
         ERROR_MESSAGE = "Unable to load python library.";
@@ -95,6 +96,7 @@ BOOL UNLOAD(void) {
         }
     }
     Py_Finalize();
+    free(phioriNameW);
     free(phioriRootW);
     free(phioriRoot);
     return result;
