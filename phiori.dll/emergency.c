@@ -4,24 +4,26 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define SHIORI25_VERSION_STRING ("SHIORI/2.5")
-#define SHIORI30_VERSION_STRING ("SHIORI/3.0")
-#define SHIORI_200 ("200 OK")
-#define SHIORI_204 ("204 No Content")
-#define SHIORI_400 ("400 Bad Request")
-#define SHIORI_500 ("500 Internal Server Error")
+#define SHIORI25_VERSION_STRING "SHIORI/2.5"
+#define SHIORI30_VERSION_STRING "SHIORI/3.0"
+#define SHIORI_200 "200 OK"
+#define SHIORI_204 "204 No Content"
+#define SHIORI_400 "400 Bad Request"
+#define SHIORI_500 "500 Internal Server Error"
 
-#define GET_STRING ("GET")
-#define VERSION_STRING ("Version")
-#define SENTENCE_STRING ("Sentence")
-#define EVENT_STRING ("Event")
-#define SENDER_STRING ("Sender")
-#define CHARSET_STRING ("Charset")
-#define ID_STRING ("ID")
-#define VALUE_STRING ("Value")
+#define GET_STRING "GET"
+#define VERSION_STRING "Version"
+#define SENTENCE_STRING "Sentence"
+#define EVENT_STRING "Event"
+#define SENDER_STRING "Sender"
+#define CHARSET_STRING "Charset"
+#define ID_STRING "ID"
+#define VALUE_STRING "Value"
 
-#define PHIORI_FETUS_STRING ("phiori/fetus")
-#define US_ASCII_STRING ("US-ASCII")
+#define PHIORI_FETUS_STRING "phiori/fetus"
+#define US_ASCII_STRING "US-ASCII"
+
+#define LICENSE_URL "http://www.gnu.org/licenses/lgpl-3.0.html"
 
 #define KVARR_CAPACITY_STEP (4)
 
@@ -51,9 +53,9 @@ void shiori_kvarr_expand(SHIORI_KV **kvarr, size_t *kvarr_capacity, size_t kvarr
     if (kvarr_count >= *kvarr_capacity) {
         *kvarr_capacity += KVARR_CAPACITY_STEP;
         if (*kvarr_capacity == KVARR_CAPACITY_STEP)
-            *kvarr = (SHIORI_KV *)calloc(*kvarr_capacity, sizeof(SHIORI_KV));
+            *kvarr = calloc(*kvarr_capacity, sizeof(SHIORI_KV));
         else
-            *kvarr = (SHIORI_KV *)realloc(*kvarr, *kvarr_capacity * sizeof(SHIORI_KV));
+            *kvarr = realloc(*kvarr, *kvarr_capacity * sizeof(SHIORI_KV));
     }
 }
 
@@ -62,7 +64,7 @@ char *dllRoot;
 void GET(const SHIORI_REQ *, SHIORI_RES *);
 
 int LOAD_Emergency(void *h, long len) {
-    dllRoot = (char *)malloc(len);
+    dllRoot = malloc(len);
     memcpy(dllRoot, h, len);
     return 1;
 }
@@ -82,7 +84,7 @@ void *REQUEST_Emergency(void *h, long *len) {
         Charset: Shift_JIS
     */
     char *raw;
-    raw = (char *)calloc(*len + 1, sizeof(char));
+    raw = calloc(*len + 1, sizeof(char));
     memcpy(raw, h, *len);
     int state = 0;
     size_t p = SIZE_MAX;
@@ -103,12 +105,12 @@ void *REQUEST_Emergency(void *h, long *len) {
                     break;
                 }
                 if (req.req == NULL) {
-                    req.req = (char *)calloc(l + 1, sizeof(char));
+                    req.req = calloc(l + 1, sizeof(char));
                     memcpy(req.req, raw + p, l);
                     p = SIZE_MAX;
                 }
                 else if (req.name == NULL && req.ver == NULL) {
-                    req.name = (char *)calloc(l + 1, sizeof(char));
+                    req.name = calloc(l + 1, sizeof(char));
                     memcpy(req.name, raw + p, l);
                     if (strcmp(req.name, SHIORI30_VERSION_STRING) == 0) {
                         req.ver = req.name;
@@ -120,7 +122,7 @@ void *REQUEST_Emergency(void *h, long *len) {
             else if (raw[i - 1] == '\r' && raw[i] == '\n') {
                 l--;
                 if (req.ver == NULL) {
-                    req.ver = (char *)calloc(l + 1, sizeof(char));
+                    req.ver = calloc(l + 1, sizeof(char));
                     memcpy(req.ver, raw + p, l);
                 }
                 p = SIZE_MAX;
@@ -147,7 +149,7 @@ void *REQUEST_Emergency(void *h, long *len) {
                             l++;
                     }
                     else {
-                        kv.key = (char *)calloc(l + 1, sizeof(char));
+                        kv.key = calloc(l + 1, sizeof(char));
                         memcpy(kv.key, raw + p, l);
                         state = 2;
                         p = SIZE_MAX;
@@ -169,7 +171,7 @@ void *REQUEST_Emergency(void *h, long *len) {
                 case 3: // Key: "Value"\r\n
                     if (raw[i - 1] == '\r' && raw[i] == '\n') {
                         l--;
-                        kv.value = (char *)calloc(l + 1, sizeof(char));
+                        kv.value = calloc(l + 1, sizeof(char));
                         memcpy(kv.value, raw + p, l);
                         state = 4;
                     }
@@ -271,7 +273,7 @@ void build_essential(SHIORI_RES *res) {
         kv->key = SENTENCE_STRING;
     else
         kv->key = VALUE_STRING;
-    kv->value = (char *)calloc(strlen(showSakura) + 1, sizeof(char));
+    kv->value = calloc(strlen(showSakura) + 1, sizeof(char));
     strcat(kv->value, showSakura);
 }
 
@@ -332,7 +334,7 @@ void GET_OnMouseDoubleClick(const SHIORI_REQ *req, SHIORI_RES *res) {
             if (strcmp(res->kvarr[i].key, VALUE_STRING) == 0)
                 kv = &res->kvarr[i];
     }
-    const char *entry[] = {"Show Traceback", "Change Ghost", "Close", "Quit"};
+    const char *entry[] = {"Show Traceback", "Change Ghost", "License", "Close", "Quit"};
     size_t len = strlen(kv->value) + 9;
     for (i = ERROR_TRACEBACK ? 0 : 1; i < sizeof(entry) / sizeof(char *); i++)
         len += strlen(entry[i]) + 10 + (i / 10);
@@ -356,17 +358,20 @@ void GET_OnChoiceSelect(const SHIORI_REQ *req, SHIORI_RES *res) {
     // show traceback
     if (strcmp(kv->value, "0") == 0 && ERROR_TRACEBACK) {
         isDynamic = 1;
-        script = (char *)calloc(strlen(ERROR_MESSAGE) + strlen(ERROR_TRACEBACK) + 18, sizeof(char));
+        script = calloc(strlen(ERROR_MESSAGE) + strlen(ERROR_TRACEBACK) + 18, sizeof(char));
         sprintf(script, "\\_q%s\\n\\n%s\\x\\c\\e", ERROR_MESSAGE, ERROR_TRACEBACK);
     }
     // change ghost
     else if (strcmp(kv->value, "1") == 0)
         script = "\\![open,ghostexplorer]\\e";
-    // close
+    // license
     else if (strcmp(kv->value, "2") == 0)
+        script = "\\![open,browser," LICENSE_URL "]\\e";
+    // close
+    else if (strcmp(kv->value, "3") == 0)
         script = "\\b[-1]\\e";
     // quit
-    else if (strcmp(kv->value, "3") == 0)
+    else if (strcmp(kv->value, "4") == 0)
         script = "\\-\\e";
     if (script != NULL) {
         build_essential(res);

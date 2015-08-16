@@ -1,6 +1,5 @@
 #ifndef SHIORI
-#define SHIORI ("phiori/1.10")
-#include "debug.h"
+#define SHIORI "phiori/1.10"
 
 __declspec(dllexport) int __cdecl load(void *h, long len);
 __declspec(dllexport) int __cdecl unload(void);

@@ -8,7 +8,7 @@
 const wchar_t *PYTHON_DLL_NAME_W = L"python35.dll";
 const char *PYTHON_LIB_NAME = "python35.zip";
 
-BOOL checkPython();
+BOOL checkPython(void);
 void getTraceback(void);
 PyObject *PyUnicode_ToSakuraScript(PyObject *value);
 
@@ -26,12 +26,12 @@ PyObject *errorTraceback;
 
 BOOL LOAD(HGLOBAL h, long len) {
     BOOL result = TRUE;
-    phioriRoot = (char *)calloc(len + 1, sizeof(char));
-    memcpy(phioriRoot, (char *)h, len);
+    phioriRoot = calloc(len + 1, sizeof(char));
+    memcpy(phioriRoot, h, len);
     size_t root_sz = MultiByteToWideChar(CP_UTF8, 0, phioriRoot, -1, NULL, 0);
-    phioriRootW = (wchar_t *)calloc(root_sz, sizeof(wchar_t));
+    phioriRootW = calloc(root_sz, sizeof(wchar_t));
     MultiByteToWideChar(CP_UTF8, 0, phioriRoot, -1, phioriRootW, root_sz);
-    phioriNameW = (wchar_t *)calloc(root_sz, sizeof(wchar_t));
+    phioriNameW = calloc(root_sz, sizeof(wchar_t));
     wcscpy(phioriNameW, phioriRootW);
     if (!checkPython()) {
         IS_ERROR = TRUE;
@@ -109,8 +109,8 @@ HGLOBAL REQUEST(HGLOBAL h, long *len) {
             ERROR_MESSAGE = "Error has occurred while loading phiori core.";
         return NULL;
     }
-    char *req = (char *)malloc(*len);
-    memcpy(req, (char *)h, *len);
+    char *req = malloc(*len);
+    memcpy(req, h, *len);
     PyObject *func = PyObject_GetAttrString(phioriModule, "request");
     if (func == NULL || !PyCallable_Check(func)) {
         PyObject *err = PyErr_Occurred();
@@ -132,7 +132,7 @@ HGLOBAL REQUEST(HGLOBAL h, long *len) {
     return result;
 }
 
-BOOL checkPython() {
+BOOL checkPython(void) {
     wchar_t *pathW = calloc(wcslen(phioriRootW) + wcslen(PYTHON_DLL_NAME_W), sizeof(wchar_t));
     wcscpy(pathW, phioriRootW);
     wcscat(pathW, PYTHON_DLL_NAME_W);
