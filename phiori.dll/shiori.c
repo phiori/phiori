@@ -30,7 +30,8 @@ HGLOBAL request(HGLOBAL h, long *len) {
     GlobalFree(h);
     if (result) {
         gResult = GlobalAlloc(GMEM_FIXED, *len + 1);
-        strcpy(gResult, result);
+        if (gResult)
+            memcpy(gResult, result, *len + 1);
         free(result);
     }
     return gResult;

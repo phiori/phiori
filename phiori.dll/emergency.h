@@ -1,6 +1,5 @@
-#include "shiori.h"
-#ifndef SHIORI_EMERGENCY
-#define SHIORI_EMERGENCY SHIORI
+#ifndef _SHIORI_EMERGENCY
+#define _SHIORI_EMERGENCY 1
 
 int LOAD_Emergency(void *h, long len);
 int UNLOAD_Emergency(void);

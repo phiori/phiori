@@ -1,4 +1,5 @@
 #include "phiori.h"
+#include "shiori.h"
 #include <stdio.h>
 #include <string.h>
 #include <wchar.h>
@@ -27,17 +28,24 @@ PyObject *errorTraceback;
 BOOL LOAD(HGLOBAL h, long len) {
     BOOL result = TRUE;
     phioriRoot = calloc(len + 1, sizeof(char));
+    if (!phioriRoot)
+        return FALSE;
     memcpy(phioriRoot, h, len);
     size_t root_sz = MultiByteToWideChar(CP_UTF8, 0, phioriRoot, -1, NULL, 0);
     phioriRootW = calloc(root_sz, sizeof(wchar_t));
+    if (!phioriRootW)
+        return FALSE;
     MultiByteToWideChar(CP_UTF8, 0, phioriRoot, -1, phioriRootW, root_sz);
     phioriNameW = calloc(root_sz, sizeof(wchar_t));
+    if (!phioriNameW)
+        return FALSE;
     wcscpy(phioriNameW, phioriRootW);
     if (!checkPython()) {
         IS_ERROR = TRUE;
         ERROR_MESSAGE = "Unable to load python library.";
         return FALSE;
     }
+    SetCurrentDirectory(phioriRootW);
     Py_SetProgramName(phioriNameW);
     Py_SetPythonHome(phioriRootW);
     Py_Initialize();
@@ -86,6 +94,7 @@ BOOL LOAD(HGLOBAL h, long len) {
 
 BOOL UNLOAD(void) {
     BOOL result = TRUE;
+    PyErr_Clear();
     if (IS_LOADED) {
         PyObject *func = PyObject_GetAttrString(phioriModule, "unload");
         if (func && PyCallable_Check(func)) {
@@ -110,6 +119,10 @@ HGLOBAL REQUEST(HGLOBAL h, long *len) {
         return NULL;
     }
     char *req = malloc(*len);
+    if (!req) {
+        *len = 0;
+        return NULL;
+    }
     memcpy(req, h, *len);
     PyObject *func = PyObject_GetAttrString(phioriModule, "request");
     if (func == NULL || !PyCallable_Check(func)) {
@@ -132,8 +145,26 @@ HGLOBAL REQUEST(HGLOBAL h, long *len) {
     return result;
 }
 
+int getPhioriVersion(char *buf) {
+#ifdef _DEBUG
+#if _PHIORI_VER_PATCH > 0
+    return sprintf(buf, "%d.%d.%d-debug", _PHIORI_VER_MAJOR, _PHIORI_VER_MINOR, _PHIORI_VER_PATCH);
+#else
+    return sprintf(buf, "%d.%d-debug", _PHIORI_VER_MAJOR, _PHIORI_VER_MINOR);
+#endif
+#else
+#if _PHIORI_VER_PATCH > 0
+    return sprintf(buf, "%d.%d.%d", _PHIORI_VER_MAJOR, _PHIORI_VER_MINOR, _PHIORI_VER_PATCH);
+#else
+    return sprintf(buf, "%d.%d", _PHIORI_VER_MAJOR, _PHIORI_VER_MINOR);
+#endif
+#endif
+}
+
 BOOL checkPython(void) {
     wchar_t *pathW = calloc(wcslen(phioriRootW) + wcslen(PYTHON_DLL_NAME_W), sizeof(wchar_t));
+    if (!pathW)
+        return FALSE;
     wcscpy(pathW, phioriRootW);
     wcscat(pathW, PYTHON_DLL_NAME_W);
     HMODULE dll = LoadLibrary(pathW);
@@ -142,6 +173,8 @@ BOOL checkPython(void) {
         return FALSE;
     FreeLibrary(dll);
     char *path = calloc(strlen(phioriRoot) + strlen(PYTHON_LIB_NAME), sizeof(char));
+    if (!path)
+        return FALSE;
     strcpy(path, phioriRoot);
     strcat(path, PYTHON_LIB_NAME);
     FILE *zip = fopen(path, "rb");
@@ -165,8 +198,10 @@ void getTraceback(void) {
         if (callResult != NULL) {
             PyObject *newLine = PyUnicode_FromString("\n");
             PyObject *rslash = PyUnicode_FromString("\\");
-            PyObject *sakura_newLine = PyUnicode_FromString("\\n\\n[half]");
+            PyObject *sakura_newLine = PyUnicode_FromString("\\n");
             PyObject *sakura_rslash = PyUnicode_FromString("\\\\");
+            PyObject *sakura_newLine2 = PyUnicode_FromString("\\n\\n");
+            PyObject *sakura_newLineH = PyUnicode_FromString("\\n\\n[half]");
             PyObject *tracebackString = PyUnicode_Join(newLine, callResult);
             PyObject *newTracebackString = PyUnicode_Replace(tracebackString, rslash, sakura_rslash, -1);
             Py_XDECREF(tracebackString);
@@ -174,7 +209,12 @@ void getTraceback(void) {
             newTracebackString = PyUnicode_Replace(tracebackString, newLine, sakura_newLine, -1);
             Py_XDECREF(tracebackString);
             tracebackString = newTracebackString;
+            newTracebackString = PyUnicode_Replace(tracebackString, sakura_newLine2, sakura_newLineH, -1);
+            Py_XDECREF(tracebackString);
+            tracebackString = newTracebackString;
             newTracebackString = NULL;
+            Py_XDECREF(sakura_newLineH);
+            Py_XDECREF(sakura_newLine2);
             Py_XDECREF(sakura_rslash);
             Py_XDECREF(sakura_newLine);
             Py_XDECREF(rslash);
@@ -182,6 +222,7 @@ void getTraceback(void) {
             PyObject *tracebackAscii = PyUnicode_AsEncodedString(tracebackString, "ascii", "replace");
             Py_XDECREF(tracebackString);
             ERROR_TRACEBACK = PyBytes_AsString(tracebackAscii);
+            Py_XDECREF(tracebackAscii);
         }
         Py_XDECREF(callResult);
     }
